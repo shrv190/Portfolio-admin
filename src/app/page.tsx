@@ -2,202 +2,150 @@
 import { useState, useEffect } from "react";
 import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import ImageUpload from "@/components/ImageUpload";
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState("projects");
+  const [activeTab, setActiveTab] = useState("profile");
   const [status, setStatus] = useState("");
 
-  // Profile State
-  const [studentName, setStudentName] = useState("");
-
-  // Projects State
+  const [profile, setProfile] = useState<any>({ name: "", profession: "", heroImage: "", about: "", resumeLink: "", githubLink: "", linkedinLink: "" });
+  
+  // Projects
   const [projects, setProjects] = useState<any[]>([]);
-  const [projId, setProjId] = useState<string | null>(null);
-  const [projTitle, setProjTitle] = useState("");
-  const [projDesc, setProjDesc] = useState("");
-  const [projCat, setProjCat] = useState("Software");
-  const [projImg, setProjImg] = useState("");
-  const [projShowImg, setProjShowImg] = useState(true);
-
-  // Experiences State
-  const [experiences, setExperiences] = useState<any[]>([]);
-  const [expId, setExpId] = useState<string | null>(null);
-  const [expTitle, setExpTitle] = useState("");
-  const [expCompany, setExpCompany] = useState("");
-  const [expType, setExpType] = useState("Internship");
-  const [expDesc, setExpDesc] = useState("");
-  const [expImg, setExpImg] = useState("");
-  const [expShowImg, setExpShowImg] = useState(true);
+  const [projImages, setProjImages] = useState<string[]>([]);
+  const [projData, setProjData] = useState({ title: "", description: "", category: "Software" });
+  
+  // Contact
+  const [contact, setContact] = useState<any[]>([]);
+  const [contactData, setContactData] = useState({ type: "Email", description: "", link: "", linkText: "", iconUrl: "" });
 
   const fetchData = async () => {
     try {
-      // Profile
-      const profSnap = await getDoc(doc(db, "settings", "profile"));
-      if (profSnap.exists()) setStudentName(profSnap.data().name || "");
+      const p = await getDoc(doc(db, "settings", "profile"));
+      if (p.exists()) setProfile(p.data());
 
-      // Projects
-      const projSnap = await getDocs(collection(db, "projects"));
-      setProjects(projSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-
-      // Experiences
-      const expSnap = await getDocs(collection(db, "experiences"));
-      setExperiences(expSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-    } catch (error) {
-      console.error("Error fetching data", error);
-    }
+      const prj = await getDocs(collection(db, "projects"));
+      setProjects(prj.docs.map(d => ({ id: d.id, ...d.data() })));
+      
+      const con = await getDocs(collection(db, "contact"));
+      setContact(con.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (error) { console.error(error); }
   };
 
   useEffect(() => { fetchData(); }, []);
 
-  const showStatus = (msg: string) => {
-    setStatus(msg);
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await setDoc(doc(db, "settings", "profile"), profile, { merge: true });
+    setStatus("Profile saved!");
     setTimeout(() => setStatus(""), 3000);
   };
 
-  // --- Handlers ---
-  const handleSaveProfile = async (e: React.FormEvent) => {
+  const handleAddProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      await setDoc(doc(db, "settings", "profile"), { name: studentName }, { merge: true });
-      showStatus("Profile saved!");
-    } catch (e) { showStatus("Error saving profile"); }
+    await addDoc(collection(db, "projects"), { ...projData, images: projImages });
+    setProjData({ title: "", description: "", category: "Software" });
+    setProjImages([]);
+    fetchData();
   };
 
-  const handleSaveProject = async (e: React.FormEvent) => {
+  const handleAddContact = async (e: React.FormEvent) => {
     e.preventDefault();
-    const data = { title: projTitle, description: projDesc, category: projCat, imageUrl: projImg, showImagePreview: projShowImg };
-    try {
-      if (projId) await updateDoc(doc(db, "projects", projId), { ...data, updatedAt: new Date().toISOString() });
-      else await addDoc(collection(db, "projects"), { ...data, createdAt: new Date().toISOString() });
-      setProjId(null); setProjTitle(""); setProjDesc(""); setProjImg(""); setProjShowImg(true);
-      fetchData(); showStatus("Project saved!");
-    } catch (e) { showStatus("Error saving project"); }
-  };
-
-  const handleSaveExperience = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const data = { title: expTitle, company: expCompany, type: expType, description: expDesc, imageUrl: expImg, showImagePreview: expShowImg };
-    try {
-      if (expId) await updateDoc(doc(db, "experiences", expId), { ...data, updatedAt: new Date().toISOString() });
-      else await addDoc(collection(db, "experiences"), { ...data, createdAt: new Date().toISOString() });
-      setExpId(null); setExpTitle(""); setExpCompany(""); setExpDesc(""); setExpImg(""); setExpShowImg(true);
-      fetchData(); showStatus("Experience saved!");
-    } catch (e) { showStatus("Error saving experience"); }
-  };
-
-  const deleteDocItem = async (col: string, id: string) => {
-    if (confirm("Are you sure?")) {
-      await deleteDoc(doc(db, col, id));
-      fetchData();
-    }
+    await addDoc(collection(db, "contact"), contactData);
+    setContactData({ type: "Email", description: "", link: "", linkText: "", iconUrl: "" });
+    fetchData();
   };
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900 p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        <header className="flex justify-between items-end border-b pb-4">
-          <div>
-            <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-            <p className="text-slate-600">Manage all content</p>
-          </div>
-          <div className="space-x-2">
-            <button onClick={() => setActiveTab("profile")} className={`px-4 py-2 rounded ${activeTab === "profile" ? "bg-blue-600 text-white" : "bg-slate-200"}`}>Profile</button>
-            <button onClick={() => setActiveTab("projects")} className={`px-4 py-2 rounded ${activeTab === "projects" ? "bg-blue-600 text-white" : "bg-slate-200"}`}>Projects</button>
-            <button onClick={() => setActiveTab("experiences")} className={`px-4 py-2 rounded ${activeTab === "experiences" ? "bg-blue-600 text-white" : "bg-slate-200"}`}>Experiences & Internships</button>
-          </div>
+      <div className="max-w-5xl mx-auto">
+        <header className="mb-6 flex gap-4 overflow-x-auto pb-4 border-b">
+          {["profile", "projects", "contact"].map(t => (
+            <button key={t} onClick={() => setActiveTab(t)} className={`px-4 py-2 capitalize font-medium rounded ${activeTab === t ? "bg-teal-600 text-white" : "bg-slate-200"}`}>{t}</button>
+          ))}
         </header>
-        
-        {status && <div className="bg-green-100 text-green-800 p-3 rounded text-center">{status}</div>}
 
-        {/* PROFILE TAB */}
+        {status && <div className="p-3 bg-green-100 text-green-800 mb-4 rounded">{status}</div>}
+
         {activeTab === "profile" && (
-          <section className="bg-white p-6 rounded shadow border">
-            <h2 className="text-xl font-semibold mb-4">Edit Profile</h2>
-            <form onSubmit={handleSaveProfile} className="space-y-4 max-w-md">
-              <div>
-                <label className="block text-sm font-medium mb-1">Student Name</label>
-                <input type="text" value={studentName} onChange={e => setStudentName(e.target.value)} className="w-full p-2 border rounded" required />
+          <section className="bg-white p-6 shadow border rounded">
+            <h2 className="text-xl font-bold mb-4">Edit Profile & About</h2>
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <input type="text" placeholder="Name" value={profile.name} onChange={e => setProfile({...profile, name: e.target.value})} className="border p-2 rounded w-full" />
+                <input type="text" placeholder="Profession" value={profile.profession} onChange={e => setProfile({...profile, profession: e.target.value})} className="border p-2 rounded w-full" />
               </div>
-              <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">Save Name</button>
+              <textarea placeholder="About Me Text" value={profile.about} onChange={e => setProfile({...profile, about: e.target.value})} className="border p-2 rounded w-full h-24" />
+              <div className="grid grid-cols-3 gap-4">
+                <input type="text" placeholder="Resume Link" value={profile.resumeLink} onChange={e => setProfile({...profile, resumeLink: e.target.value})} className="border p-2 rounded w-full" />
+                <input type="text" placeholder="GitHub Link" value={profile.githubLink} onChange={e => setProfile({...profile, githubLink: e.target.value})} className="border p-2 rounded w-full" />
+                <input type="text" placeholder="LinkedIn Link" value={profile.linkedinLink} onChange={e => setProfile({...profile, linkedinLink: e.target.value})} className="border p-2 rounded w-full" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Hero Profile Image</label>
+                <ImageUpload onUpload={(url) => setProfile({...profile, heroImage: url})} />
+                {profile.heroImage && <img src={profile.heroImage} className="w-24 h-24 object-cover rounded-full border shadow" />}
+              </div>
+              <button type="submit" className="bg-teal-600 text-white px-6 py-2 rounded">Save All</button>
             </form>
           </section>
         )}
 
-        {/* PROJECTS TAB */}
         {activeTab === "projects" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <section className="bg-white p-6 rounded shadow border">
-              <h2 className="text-xl font-semibold mb-4">{projId ? "Edit Project" : "Add Project"}</h2>
-              <form onSubmit={handleSaveProject} className="space-y-4">
-                <input type="text" placeholder="Title" value={projTitle} onChange={e => setProjTitle(e.target.value)} className="w-full p-2 border rounded" required />
-                <textarea placeholder="Description" value={projDesc} onChange={e => setProjDesc(e.target.value)} className="w-full p-2 border rounded h-24" required />
-                <select value={projCat} onChange={e => setProjCat(e.target.value)} className="w-full p-2 border rounded">
-                  <option>Software</option><option>Hardware</option><option>Extracurricular</option>
-                </select>
-                <input type="text" placeholder="Image URL (optional)" value={projImg} onChange={e => setProjImg(e.target.value)} className="w-full p-2 border rounded" />
-                <label className="flex items-center space-x-2">
-                  <input type="checkbox" checked={projShowImg} onChange={e => setProjShowImg(e.target.checked)} />
-                  <span>Show Image Preview</span>
-                </label>
-                <div className="flex gap-2">
-                  <button type="submit" className="flex-1 bg-blue-600 text-white px-4 py-2 rounded">Save</button>
-                  {projId && <button type="button" onClick={() => setProjId(null)} className="flex-1 bg-slate-200 px-4 py-2 rounded">Cancel</button>}
+            <section className="bg-white p-6 shadow border rounded">
+              <h2 className="text-xl font-bold mb-4">Add Project</h2>
+              <form onSubmit={handleAddProject} className="space-y-4">
+                <input type="text" placeholder="Title" value={projData.title} onChange={e => setProjData({...projData, title: e.target.value})} className="border p-2 rounded w-full" required/>
+                <textarea placeholder="Description" value={projData.description} onChange={e => setProjData({...projData, description: e.target.value})} className="border p-2 rounded w-full" required/>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">Project Images (Upload Multiple for Carousel)</label>
+                  <ImageUpload onUpload={(url) => setProjImages([...projImages, url])} />
+                  <div className="flex gap-2 flex-wrap mt-2">
+                    {projImages.map((img, i) => (
+                      <div key={i} className="relative group">
+                        <img src={img} className="w-20 h-20 object-cover rounded shadow" />
+                        <button type="button" onClick={() => setProjImages(projImages.filter((_, idx) => idx !== i))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs">x</button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+                <button type="submit" className="bg-teal-600 text-white px-6 py-2 rounded w-full">Save Project</button>
               </form>
             </section>
-            <section className="bg-white p-6 rounded shadow border overflow-y-auto max-h-[600px]">
-              <h2 className="text-xl font-semibold mb-4">Existing Projects</h2>
+            
+            <section className="bg-white p-6 shadow border rounded h-[600px] overflow-y-auto">
+              <h2 className="text-xl font-bold mb-4">Existing Projects</h2>
               {projects.map(p => (
-                <div key={p.id} className="border p-3 mb-3 rounded flex justify-between items-center">
-                  <div><p className="font-bold">{p.title}</p><p className="text-sm text-slate-500">{p.category}</p></div>
-                  <div className="space-x-2">
-                    <button onClick={() => { setProjId(p.id); setProjTitle(p.title); setProjDesc(p.description); setProjCat(p.category); setProjImg(p.imageUrl||""); setProjShowImg(p.showImagePreview??true); }} className="text-blue-600 text-sm">Edit</button>
-                    <button onClick={() => deleteDocItem("projects", p.id)} className="text-red-600 text-sm">Del</button>
+                <div key={p.id} className="border p-4 rounded mb-4 flex justify-between">
+                  <div>
+                    <h3 className="font-bold">{p.title}</h3>
+                    <p className="text-sm text-slate-500">{p.images?.length || 0} images</p>
                   </div>
+                  <button onClick={() => {deleteDoc(doc(db, "projects", p.id)); fetchData();}} className="text-red-500 text-sm">Delete</button>
                 </div>
               ))}
             </section>
           </div>
         )}
 
-        {/* EXPERIENCES TAB */}
-        {activeTab === "experiences" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <section className="bg-white p-6 rounded shadow border">
-              <h2 className="text-xl font-semibold mb-4">{expId ? "Edit Experience" : "Add Experience"}</h2>
-              <form onSubmit={handleSaveExperience} className="space-y-4">
-                <input type="text" placeholder="Role/Title" value={expTitle} onChange={e => setExpTitle(e.target.value)} className="w-full p-2 border rounded" required />
-                <input type="text" placeholder="Company/Organization" value={expCompany} onChange={e => setExpCompany(e.target.value)} className="w-full p-2 border rounded" required />
-                <select value={expType} onChange={e => setExpType(e.target.value)} className="w-full p-2 border rounded">
-                  <option>Internship</option><option>Full-Time</option><option>Club/Society</option>
-                </select>
-                <textarea placeholder="Description" value={expDesc} onChange={e => setExpDesc(e.target.value)} className="w-full p-2 border rounded h-24" required />
-                <input type="text" placeholder="Image URL (optional)" value={expImg} onChange={e => setExpImg(e.target.value)} className="w-full p-2 border rounded" />
-                <label className="flex items-center space-x-2">
-                  <input type="checkbox" checked={expShowImg} onChange={e => setExpShowImg(e.target.checked)} />
-                  <span>Show Image Preview</span>
-                </label>
-                <div className="flex gap-2">
-                  <button type="submit" className="flex-1 bg-blue-600 text-white px-4 py-2 rounded">Save</button>
-                  {expId && <button type="button" onClick={() => setExpId(null)} className="flex-1 bg-slate-200 px-4 py-2 rounded">Cancel</button>}
-                </div>
-              </form>
-            </section>
-            <section className="bg-white p-6 rounded shadow border overflow-y-auto max-h-[600px]">
-              <h2 className="text-xl font-semibold mb-4">Existing Experiences</h2>
-              {experiences.map(e => (
-                <div key={e.id} className="border p-3 mb-3 rounded flex justify-between items-center">
-                  <div><p className="font-bold">{e.title}</p><p className="text-sm text-slate-500">{e.company} ({e.type})</p></div>
-                  <div className="space-x-2">
-                    <button onClick={() => { setExpId(e.id); setExpTitle(e.title); setExpCompany(e.company); setExpType(e.type); setExpDesc(e.description); setExpImg(e.imageUrl||""); setExpShowImg(e.showImagePreview??true); }} className="text-blue-600 text-sm">Edit</button>
-                    <button onClick={() => deleteDocItem("experiences", e.id)} className="text-red-600 text-sm">Del</button>
-                  </div>
-                </div>
-              ))}
-            </section>
-          </div>
+        {activeTab === "contact" && (
+          <section className="bg-white p-6 shadow border rounded max-w-lg">
+            <h2 className="text-xl font-bold mb-4">Add Contact Method</h2>
+            <form onSubmit={handleAddContact} className="space-y-4">
+              <input type="text" placeholder="Type (e.g., Email, Phone)" value={contactData.type} onChange={e => setContactData({...contactData, type: e.target.value})} className="border p-2 rounded w-full" required/>
+              <input type="text" placeholder="Description (e.g., example@email.com)" value={contactData.description} onChange={e => setContactData({...contactData, description: e.target.value})} className="border p-2 rounded w-full" required/>
+              <input type="text" placeholder="Link (e.g., mailto:example@email.com)" value={contactData.link} onChange={e => setContactData({...contactData, link: e.target.value})} className="border p-2 rounded w-full" />
+              <div>
+                <label className="block text-sm font-medium mb-2">Custom Icon (Optional)</label>
+                <ImageUpload onUpload={(url) => setContactData({...contactData, iconUrl: url})} />
+                {contactData.iconUrl && <img src={contactData.iconUrl} className="w-10 h-10 object-contain bg-slate-100 p-1 rounded" />}
+              </div>
+              <button type="submit" className="bg-teal-600 text-white px-6 py-2 rounded w-full">Save Contact</button>
+            </form>
+          </section>
         )}
-
       </div>
     </main>
   );
